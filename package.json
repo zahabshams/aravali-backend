@@ -7,7 +7,7 @@
   "description": "Aravali Interiors — Backend API",
   "private": true,
   "scripts": {
-    "build": "nest build",
+    "build": "npx prisma generate && nest build",
     "start": "nest start",
     "start:dev": "nest start --watch",
     "start:prod": "node dist/main",
