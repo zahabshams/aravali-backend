@@ -1,0 +1,266 @@
+// ═══════════════════════════════════════════
+// Aravali Interiors — Prisma Schema
+// ═══════════════════════════════════════════
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── ENUMS ───
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  QUALIFIED
+  PROPOSAL
+  WON
+  LOST
+}
+
+enum LeadPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum Region {
+  WEST
+  NORTH
+  SOUTH
+  EAST
+  PAN_INDIA
+}
+
+enum UserRole {
+  ADMIN
+  MANAGER
+  SALES
+  VIEWER
+}
+
+// ─── LEADS ───
+
+model Lead {
+  id        String   @id @default(uuid()) @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Status & routing
+  status   LeadStatus   @default(NEW)
+  priority LeadPriority @default(NORMAL)
+  region   Region?
+  tags     Json         @default("[]")
+
+  // Step 1: Core info (required)
+  fullName    String  @map("full_name") @db.VarChar(200)
+  company     String? @db.VarChar(200)
+  email       String  @db.VarChar(254)
+  phone       String  @db.VarChar(20)
+  projectType String? @map("project_type") @db.VarChar(100)
+
+  // Step 2: Project details (optional)
+  approxArea     String?   @map("approx_area") @db.VarChar(50)
+  city           String?   @db.VarChar(100)
+  budgetRange    String?   @map("budget_range") @db.VarChar(50)
+  preferredStart DateTime? @map("preferred_start") @db.Date
+
+  // Step 3: Additional (optional)
+  additionalDetails String? @map("additional_details") @db.Text
+  referralSource    String? @map("referral_source") @db.VarChar(100)
+
+  // Progressive form
+  formStepCompleted Int     @default(1) @map("form_step_completed")
+  resumeToken       String? @unique @map("resume_token") @db.VarChar(64)
+  resumeTokenExpiry DateTime? @map("resume_token_expiry")
+
+  // Assignment
+  assignedTo   User?   @relation("AssignedLeads", fields: [assignedToId], references: [id])
+  assignedToId String? @map("assigned_to_id") @db.Uuid
+  contactedAt  DateTime? @map("contacted_at")
+
+  // CRM
+  crmId       String?   @map("crm_id") @db.VarChar(100)
+  crmSyncedAt DateTime? @map("crm_synced_at")
+
+  // Relations
+  notes       LeadNote[]
+  attachments LeadAttachment[]
+  auditLogs   AuditLog[]
+
+  @@index([status])
+  @@index([priority])
+  @@index([region])
+  @@index([createdAt(sort: Desc)])
+  @@index([assignedToId])
+  @@map("leads")
+}
+
+model LeadNote {
+  id        String   @id @default(uuid()) @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+
+  content String @db.Text
+
+  lead   Lead   @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  leadId String @map("lead_id") @db.Uuid
+
+  user   User   @relation(fields: [userId], references: [id])
+  userId String @map("user_id") @db.Uuid
+
+  @@map("lead_notes")
+}
+
+model LeadAttachment {
+  id         String   @id @default(uuid()) @db.Uuid
+  uploadedAt DateTime @default(now()) @map("uploaded_at")
+
+  fileName     String  @map("file_name") @db.VarChar(255)
+  fileKey      String  @map("file_key") @db.VarChar(500)
+  fileSize     BigInt? @map("file_size")
+  mimeType     String? @map("mime_type") @db.VarChar(100)
+  virusScanned Boolean @default(false) @map("virus_scanned")
+  virusClean   Boolean? @map("virus_clean")
+
+  lead   Lead   @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  leadId String @map("lead_id") @db.Uuid
+
+  @@map("lead_attachments")
+}
+
+// ─── USERS (Admin) ───
+
+model User {
+  id        String   @id @default(uuid()) @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  email        String   @unique @db.VarChar(254)
+  name         String   @db.VarChar(200)
+  role         UserRole @default(SALES)
+  region       Region?
+  passwordHash String   @map("password_hash") @db.VarChar(255)
+  isActive     Boolean  @default(true) @map("is_active")
+
+  assignedLeads Lead[]     @relation("AssignedLeads")
+  notes         LeadNote[]
+  blogPosts     BlogPost[]
+  auditLogs     AuditLog[]
+
+  @@map("users")
+}
+
+// ─── PORTFOLIO ───
+
+model PortfolioProject {
+  id        String   @id @default(uuid()) @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  title          String  @db.VarChar(200)
+  slug           String  @unique @db.VarChar(200)
+  client         String? @db.VarChar(200)
+  sector         String? @db.VarChar(50) // office, tech, banking, healthcare, retail
+  city           String? @db.VarChar(100)
+  areaSqft       Int?    @map("area_sqft")
+  budgetDisplay  String? @map("budget_display") @db.VarChar(50)
+  durationMonths Int?    @map("duration_months")
+
+  description String? @db.Text
+  challenge   String? @db.Text
+  solution    String? @db.Text
+  impact      String? @db.Text
+
+  sustainability Json?  // { certification, energySaved, waterSaved, wasteDiverted, co2Avoided }
+  images         Json?  // [{ key, caption, isPrimary }]
+
+  featured  Boolean @default(false)
+  published Boolean @default(true)
+  sortOrder Int     @default(0) @map("sort_order")
+
+  @@index([sector])
+  @@index([city])
+  @@index([published, sortOrder])
+  @@map("portfolio_projects")
+}
+
+// ─── BLOG ───
+
+model BlogPost {
+  id        String   @id @default(uuid()) @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  title       String  @db.VarChar(300)
+  slug        String  @unique @db.VarChar(300)
+  excerpt     String? @db.Text
+  content     String  @db.Text
+  category    String? @db.VarChar(50)
+  coverImage  String? @map("cover_image") @db.VarChar(500)
+
+  author   User   @relation(fields: [authorId], references: [id])
+  authorId String @map("author_id") @db.Uuid
+
+  published   Boolean   @default(false)
+  publishedAt DateTime? @map("published_at")
+
+  seoTitle       String? @map("seo_title") @db.VarChar(70)
+  seoDescription String? @map("seo_description") @db.VarChar(160)
+
+  @@index([published, publishedAt(sort: Desc)])
+  @@index([category])
+  @@map("blog_posts")
+}
+
+// ─── AUDIT LOG ───
+
+model AuditLog {
+  id        String   @id @default(uuid()) @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+
+  action    String @db.VarChar(50) // lead.created, lead.updated, lead.viewed, lead.exported
+  entity    String @db.VarChar(50)
+  entityId  String @map("entity_id") @db.Uuid
+  changes   Json?  // { field: { old, new } }
+  ipAddress String? @map("ip_address") @db.VarChar(45)
+
+  user   User?   @relation(fields: [userId], references: [id])
+  userId String? @map("user_id") @db.Uuid
+
+  lead   Lead?   @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  leadId String? @map("lead_id") @db.Uuid
+
+  @@index([entity, entityId])
+  @@index([createdAt(sort: Desc)])
+  @@map("audit_logs")
+}
+
+// ─── CALENDAR BOOKINGS ───
+
+model CalendarBooking {
+  id        String   @id @default(uuid()) @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+
+  name      String @db.VarChar(200)
+  email     String @db.VarChar(254)
+  phone     String? @db.VarChar(20)
+  company   String? @db.VarChar(200)
+  notes     String? @db.Text
+
+  startTime     DateTime @map("start_time")
+  endTime       DateTime @map("end_time")
+  timezone      String   @default("Asia/Kolkata") @db.VarChar(50)
+  calendarEventId String? @map("calendar_event_id") @db.VarChar(200)
+  provider      String   @default("google") @db.VarChar(20) // google | outlook
+
+  confirmed Boolean @default(false)
+  cancelled Boolean @default(false)
+
+  @@index([startTime])
+  @@map("calendar_bookings")
+}
