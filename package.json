@@ -7,7 +7,7 @@
   "description": "Aravali Interiors — Backend API",
   "private": true,
   "scripts": {
-    "build": "npx prisma generate && nest build",
+    "build": "prisma generate && nest build",
     "start": "nest start",
     "start:dev": "nest start --watch",
     "start:prod": "node dist/main",
@@ -23,6 +23,8 @@
     "prisma:studio": "prisma studio"
   },
   "dependencies": {
+    "@nestjs/cli": "^10.4.0",
+    "@nestjs/common": "^10.4.0",
     "@nestjs/common": "^10.4.0",
     "@nestjs/config": "^3.2.0",
     "@nestjs/core": "^10.4.0",
@@ -49,7 +51,6 @@
     "uuid": "^9.0.0"
   },
   "devDependencies": {
-    "@nestjs/cli": "^10.4.0",
     "@nestjs/schematics": "^10.1.0",
     "@nestjs/testing": "^10.4.0",
     "@types/bcrypt": "^5.0.2",
